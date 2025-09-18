@@ -3,6 +3,7 @@ import asyncio
 
 from RTN import parse, title_match
 from urllib.parse import quote, unquote
+from typing import Optional
 
 from comet.utils.models import settings
 from comet.utils.general import is_video
@@ -87,11 +88,14 @@ class StremThru:
 
         responses = await asyncio.gather(*tasks)
 
-        availability = [
-            response["data"]["items"]
-            for response in responses
-            if response and "data" in response
-        ]
+        availability = []
+        for response in responses:
+            if response and "data" in response and "items" in response["data"]:
+                availability.append(response["data"]["items"])
+            elif response:
+                logger.warning(f"Invalid availability response structure from {self.name}: {response}")
+            else:
+                logger.warning(f"Empty availability response from {self.name}")
 
         is_offcloud = self.real_debrid_name == "offcloud"
 
@@ -177,7 +181,7 @@ class StremThru:
         torrent_name: str,
         season: int,
         episode: int,
-        sources: list = None,
+        sources: Optional[list] = None,
     ):
         try:
             magnet_uri = f"magnet:?xt=urn:btih:{hash}&dn={quote(torrent_name)}"
@@ -192,6 +196,14 @@ class StremThru:
             )
             magnet = await magnet.json()
 
+            # Debug logging for API response
+            logger.log("SCRAPER", f"StremThru magnet response for {hash}: {magnet}")
+
+            # Check if response has expected structure
+            if not magnet or "data" not in magnet:
+                logger.warning(f"Invalid magnet response structure for {hash}: {magnet}")
+                return
+
             if magnet["data"]["status"] != "downloaded":
                 return
 
@@ -200,6 +212,11 @@ class StremThru:
 
             name_parsed = parse(name)
             target_file = None
+
+            # Ensure files data exists
+            if "files" not in magnet["data"]:
+                logger.warning(f"No files data in magnet response for {hash}")
+                return
 
             debrid_files = magnet["data"]["files"]
             debrid_files_parsed = []
@@ -277,6 +294,11 @@ class StremThru:
                 json={"link": target_file["link"]},
             )
             link = await link.json()
+
+            # Check if link response has expected structure
+            if not link or "data" not in link or "link" not in link["data"]:
+                logger.warning(f"Invalid link response structure for {hash}: {link}")
+                return
 
             return link["data"]["link"]
         except Exception as e:
