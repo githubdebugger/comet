@@ -172,6 +172,7 @@ show_usage() {
     echo "  backup      Backup data and configuration"
     echo "  clean       Clean up Docker resources"
     echo "  upgrade     Run upgrade script"
+    echo "  validate    Validate environment configuration"
     echo "  help        Show this help message"
     echo
     echo "Examples:"
@@ -179,6 +180,7 @@ show_usage() {
     echo "  $0 logs 100         Show last 100 log lines"
     echo "  $0 restart          Restart the container"
     echo "  $0 upgrade          Upgrade to latest version"
+    echo "  $0 validate         Check .env configuration"
 }
 
 # Main execution
@@ -225,6 +227,14 @@ case "$1" in
             ./upgrade_comet.sh
         else
             log_error "upgrade_comet.sh not found"
+        fi
+        ;;
+    "validate")
+        print_header
+        if [ -f "./validate_env.sh" ]; then
+            ./validate_env.sh
+        else
+            log_error "validate_env.sh not found"
         fi
         ;;
     "help"|"--help"|"-h"|"")

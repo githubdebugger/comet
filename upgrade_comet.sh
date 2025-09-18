@@ -106,8 +106,8 @@ pull_latest_image() {
     # Pull latest image
     docker compose pull
     
-    # Get new image ID
-    NEW_IMAGE_ID=$(docker images --format "table {{.ID}}" g0ldyy/comet:latest | tail -n1)
+    # Get new image ID (more reliable method)
+    NEW_IMAGE_ID=$(docker images g0ldyy/comet:latest --format "{{.ID}}" | head -n1)
     
     if [ "$CURRENT_IMAGE_ID" != "$NEW_IMAGE_ID" ]; then
         log_success "New image pulled successfully"
@@ -129,9 +129,17 @@ upgrade_container() {
     log_info "Starting container with new image..."
     docker compose up -d
     
-    # Wait for container to be ready
+    # Wait for container to be ready with timeout
     log_info "Waiting for container to be ready..."
-    sleep 10
+    local timeout=30
+    local count=0
+    while [ $count -lt $timeout ]; do
+        if docker ps | grep -q "$CONTAINER_NAME.*Up"; then
+            break
+        fi
+        sleep 1
+        count=$((count + 1))
+    done
     
     # Check if container is running
     if docker ps | grep -q "$CONTAINER_NAME.*Up"; then
@@ -164,9 +172,10 @@ verify_upgrade() {
         return 1
     fi
     
-    # Check logs for errors
-    if docker logs "$CONTAINER_NAME" --tail 10 | grep -i error; then
+    # Check logs for errors (suppress grep exit code)
+    if docker logs "$CONTAINER_NAME" --tail 10 2>/dev/null | grep -i error >/dev/null 2>&1; then
         log_warning "Errors found in recent logs"
+        docker logs "$CONTAINER_NAME" --tail 5 | grep -i error | head -3
     else
         log_success "No errors in recent logs"
     fi
