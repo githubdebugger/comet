@@ -1,4 +1,4 @@
-<h1 align="center" id="title">☄️ Comet - <a href="https://discord.com/invite/UJEqpT42nb">New Discord</a></h1>
+<h1 align="center" id="title">☄️ Comet - <a href="https://discord.com/invite/UJEqpT42nb">Discord</a></h1>
 <p align="center"><img src="https://socialify.git.ci/g0ldyy/comet/image?description=1&font=Inter&forks=1&language=1&name=1&owner=1&pattern=Solid&stargazers=1&theme=Dark" /></p>
 
 # Features
@@ -14,6 +14,7 @@
 - Direct Torrent supported
 - [Kitsu](https://kitsu.io/) support (anime)
 - Adult Content Filter
+- ChillLink Protocol support
 
 # Installation
 To customize your Comet experience to suit your needs, please first take a look at all the [environment variables](https://github.com/g0ldyy/comet/blob/main/.env-sample)!
@@ -79,10 +80,10 @@ server {
 ## Support the Project
 Comet is a community-driven project, and your support helps it grow! 🚀
 
-- ⭐ **Star the repo** here on GitHub
+- ❤️ **Donate** via [GitHub Sponsors](https://github.com/sponsors/g0ldyy) or [Ko-fi](https://ko-fi.com/g0ldyy) to support development
+- ⭐ **Star the repository** here on GitHub
 - ⭐ **Star the addon** on [stremio-addons.net](https://stremio-addons.net/addons/comet)  
-- 🐛 **Contribute** by reporting issues, suggesting features, or submitting PRs  
-- ❤️ **Donate** via [Ko-fi](https://ko-fi.com/g0ldyy) to support development
+- 🐛 **Contribute** by reporting issues, suggesting features, or submitting PRs 
 
 ## Web UI Showcase
 <img src="https://i.imgur.com/7xY5AEi.png" />

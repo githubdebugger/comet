@@ -1,6 +1,6 @@
 import aiohttp
 
-from comet.utils.logger import logger
+from comet.core.logger import logger
 
 
 async def get_imdb_metadata(session: aiohttp.ClientSession, id: str):
@@ -16,5 +16,10 @@ async def get_imdb_metadata(session: aiohttp.ClientSession, id: str):
                 year_end = int(element["yr"].split("-")[1]) if "yr" in element else None
                 return title, year, year_end
     except Exception as e:
-        logger.warning(f"Exception while getting IMDB metadata for {id}: {e}")
+        additional_info = ""
+        if metadata:
+            additional_info = f"- API Response: {metadata}"
+        logger.warning(
+            f"Exception while getting IMDB metadata for {id}: {e}{additional_info}"
+        )
         return None, None, None

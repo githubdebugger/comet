@@ -1,60 +1,73 @@
-import aiohttp
 import xml.etree.ElementTree as ET
 
-from comet.utils.logger import logger
-from comet.utils.general import log_scraper_error
+import aiohttp
+
+from comet.core.logger import log_scraper_error, logger
+from comet.scrapers.base import BaseScraper
+from comet.scrapers.models import ScrapeRequest
+from comet.services.anime import anime_mapper
 
 
-async def get_stremthru(manager, session: aiohttp.ClientSession, url: str):
-    torrents = []
+class StremthruScraper(BaseScraper):
+    def __init__(self, manager, session: aiohttp.ClientSession, url: str):
+        super().__init__(manager, session, url)
 
-    try:
-        data = await session.get(
-            f"{url}/v0/torznab/api?t=search&imdbid={manager.media_only_id}"
-        )
-        data_text = await data.text()
+    async def scrape(self, request: ScrapeRequest):
+        torrents = []
 
-        root = ET.fromstring(data_text)
+        try:
+            media_id = request.media_only_id
+            if "kitsu" in request.media_id:
+                imdb_id = anime_mapper.get_imdb_from_kitsu(int(media_id))
+                if imdb_id:
+                    media_id = imdb_id
 
-        for item in root.findall(".//item"):
-            try:
-                title = item.find("title").text
+            data = await self.session.get(
+                f"{self.url}/v0/torznab/api?t=search&imdbid={media_id}"
+            )
+            data_text = await data.text()
 
-                size = None
-                info_hash = None
+            root = ET.fromstring(data_text)
 
-                for attr in item.findall(
-                    ".//torznab:attr",
-                    {"torznab": "http://torznab.com/schemas/2015/feed"},
-                ):
-                    attr_name = attr.get("name")
-                    attr_value = attr.get("value")
+            for item in root.findall(".//item"):
+                try:
+                    title = item.find("title").text
 
-                    if attr_name == "size":
-                        size = int(attr_value)
-                    elif attr_name == "infohash":
-                        info_hash = attr_value
+                    size = None
+                    info_hash = None
 
-                if size is None or info_hash is None:
+                    for attr in item.findall(
+                        ".//torznab:attr",
+                        {"torznab": "http://torznab.com/schemas/2015/feed"},
+                    ):
+                        attr_name = attr.get("name")
+                        attr_value = attr.get("value")
+
+                        if attr_name == "size":
+                            size = int(attr_value)
+                        elif attr_name == "infohash":
+                            info_hash = attr_value
+
+                    if size is None or info_hash is None:
+                        continue
+
+                    torrents.append(
+                        {
+                            "title": title,
+                            "infoHash": info_hash,
+                            "fileIndex": None,
+                            "seeders": None,
+                            "size": size,
+                            "tracker": "StremThru",
+                            "sources": [],
+                        }
+                    )
+
+                except Exception as e:
+                    logger.warning(f"Error parsing torrent item from StremThru: {e}")
                     continue
 
-                torrent = {
-                    "title": title,
-                    "infoHash": info_hash,
-                    "fileIndex": None,
-                    "seeders": None,
-                    "size": size,
-                    "tracker": "StremThru",
-                    "sources": [],
-                }
+        except Exception as e:
+            log_scraper_error("StremThru", self.url, request.media_only_id, e)
 
-                torrents.append(torrent)
-
-            except Exception as e:
-                logger.warning(f"Error parsing torrent item from StremThru: {e}")
-                continue
-
-    except Exception as e:
-        log_scraper_error("StremThru", url, manager.media_only_id, e)
-
-    await manager.filter_manager(torrents)
+        return torrents

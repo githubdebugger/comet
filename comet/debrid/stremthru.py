@@ -1,15 +1,15 @@
-import aiohttp
 import asyncio
-
-from RTN import parse, title_match
 from urllib.parse import quote, unquote
 from typing import Optional
 
-from comet.utils.models import settings
-from comet.utils.general import is_video
-from comet.utils.debrid import cache_availability
-from comet.utils.logger import logger
-from comet.utils.torrent import torrent_update_queue
+import aiohttp
+from RTN import parse, title_match
+
+from comet.core.logger import logger
+from comet.core.models import settings
+from comet.services.debrid_cache import cache_availability
+from comet.services.torrent_manager import torrent_update_queue
+from comet.utils.parsing import is_video
 
 
 class StremThru:
@@ -93,7 +93,9 @@ class StremThru:
             if response and "data" in response and "items" in response["data"]:
                 availability.append(response["data"]["items"])
             elif response:
-                logger.warning(f"Invalid availability response structure from {self.name}: {response}")
+                logger.warning(
+                    f"Invalid availability response structure from {self.name}: {response}"
+                )
             else:
                 logger.warning(f"Empty availability response from {self.name}")
 
@@ -108,9 +110,9 @@ class StremThru:
 
                 cached_count += 1
                 hash = torrent["hash"]
-                seeders = seeders_map[hash]
-                tracker = tracker_map[hash]
-                sources = sources_map[hash]
+                seeders = seeders_map.get(hash, 0)
+                tracker = tracker_map.get(hash, "")
+                sources = sources_map.get(hash, [])
 
                 if is_offcloud:
                     file_info = {
@@ -182,6 +184,7 @@ class StremThru:
         season: int,
         episode: int,
         sources: Optional[list] = None,
+        aliases: dict = None,
     ):
         try:
             magnet_uri = f"magnet:?xt=urn:btih:{hash}&dn={quote(torrent_name)}"
@@ -201,7 +204,9 @@ class StremThru:
 
             # Check if response has expected structure
             if not magnet or "data" not in magnet:
-                logger.warning(f"Invalid magnet response structure for {hash}: {magnet}")
+                logger.warning(
+                    f"Invalid magnet response structure for {hash}: {magnet}"
+                )
                 return
 
             if magnet["data"]["status"] != "downloaded":
@@ -252,8 +257,10 @@ class StremThru:
 
                 debrid_files_parsed.append(file)
 
-                if not title_match(
-                    name_parsed.parsed_title, filename_parsed.parsed_title
+                if not filename_parsed.parsed_title or not title_match(
+                    name_parsed.parsed_title,
+                    filename_parsed.parsed_title,
+                    aliases=aliases,
                 ):
                     continue
 

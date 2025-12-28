@@ -1,5 +1,187 @@
 # Changelog
 
+<!-- markdownlint-disable MD024 -->
+
+## [2.38.0](https://github.com/g0ldyy/comet/compare/v2.37.0...v2.38.0) (2025-12-27)
+
+
+### Features
+
+* add ChillLink API endpoints and refactor stream description formatting logic ([ec2aa2b](https://github.com/g0ldyy/comet/commit/ec2aa2bb170b4bef70dee0ce452f94ab53d44f94))
+* add ChillLink Protocol support to README ([8d8c484](https://github.com/g0ldyy/comet/commit/8d8c4844cfe24c874260e665945af1a2ffde88da))
+* ChillLink Support ([b066b54](https://github.com/g0ldyy/comet/commit/b066b5495a86191bd08d366f8f198dc190a54974))
+
+## [2.37.0](https://github.com/g0ldyy/comet/compare/v2.36.0...v2.37.0) (2025-12-26)
+
+
+### Features
+
+* add OpenAPI tags, summaries, and descriptions to API endpoints and parameters ([da1d5a7](https://github.com/g0ldyy/comet/commit/da1d5a7fbd6feb9e0e2c9a57d9456fae5744bddb))
+* introduce a Python script for Comet instance uptime monitoring and Discord notifications ([b61f196](https://github.com/g0ldyy/comet/commit/b61f196d0b868ea53759363ef3452f622450a8b3))
+* update comet scraper stream endpoint path ([0f3a96f](https://github.com/g0ldyy/comet/commit/0f3a96f5fdee2cbecdd48b3090504ea5b52a13f3))
+
+## [2.36.0](https://github.com/g0ldyy/comet/compare/v2.35.0...v2.36.0) (2025-12-25)
+
+
+### Features
+
+* add default PostgreSQL service to Docker Compose, configure Comet to use it, and introduce SQLite concurrency warnings ([24fb50b](https://github.com/g0ldyy/comet/commit/24fb50bf77645dfbcf103df78e6e8f51d4855511))
+
+
+### Bug Fixes
+
+* correct PostgreSQL data volume mount path in docker-compose.yml ([7ae3788](https://github.com/g0ldyy/comet/commit/7ae3788a5cc81764297588b83dadb939aef6cac1))
+
+## [2.35.0](https://github.com/g0ldyy/comet/compare/v2.34.0...v2.35.0) (2025-12-21)
+
+
+### Features
+
+* add API response to IMDB metadata retrieval error logs ([242e83a](https://github.com/g0ldyy/comet/commit/242e83a7e1bad5303fa6dfa8298d2fd9c2ec4f22))
+* add robust error handling to the Prowlarr scraper ([95866a6](https://github.com/g0ldyy/comet/commit/95866a68abe0bf4e38c6eab0f6f6576ebbcd37e6))
+* fetch indexer statuses from response ([bd51abf](https://github.com/g0ldyy/comet/commit/bd51abf40e9173fe3a366cfa9b5bcc0f91d77767))
+* implement dynamic Prowlarr indexer management with initialization wait, update Jackett management, and add related settings and logging ([1152b42](https://github.com/g0ldyy/comet/commit/1152b42c2ee072f73607bb9480f83e0993751c1c))
+
+## [2.34.0](https://github.com/g0ldyy/comet/compare/v2.33.0...v2.34.0) (2025-12-21)
+
+
+### Features
+
+* add YGGTORRENT_PASSKEY setting and update Yggtorrent scraper to parse info hash from page HTML and use passkey for tracker sources ([c442b0c](https://github.com/g0ldyy/comet/commit/c442b0c2691c2022e5da244010e9ae20621faaf2))
+* add YGGTORRENT_PASSKEY setting and update Yggtorrent scraper to parse info hash from page HTML and use passkey for tracker sources ([6e44eb2](https://github.com/g0ldyy/comet/commit/6e44eb260dcf4354308b9e7c36f61c3c55593f38))
+* dev to main ([2d2ded3](https://github.com/g0ldyy/comet/commit/2d2ded3f6a70b7efce0d134d281809cd8a5f7015))
+* introduce IndexerManager service to dynamically update and manage Jackett and Prowlarr indexers ([beacb2a](https://github.com/g0ldyy/comet/commit/beacb2a966fc8969aa3070cbc9e0511073d55b6d))
+* introduce IndexerManager service to dynamically update and manage Jackett and Prowlarr indexers ([8265cc5](https://github.com/g0ldyy/comet/commit/8265cc55aae8b796e18ee8b738e38d98b9a9990c))
+
+## [2.33.0](https://github.com/g0ldyy/comet/compare/v2.32.0...v2.33.0) (2025-12-12)
+
+
+### Features
+
+* add DEBRID_CACHE_CHECK_RATIO setting and update availability ch… ([0173711](https://github.com/g0ldyy/comet/commit/0173711eeda1dd0cfe121e6b153c124ded8b31b9))
+* add DEBRID_CACHE_CHECK_RATIO setting and update availability check logic ([3ecd35a](https://github.com/g0ldyy/comet/commit/3ecd35aa9fcfa12de7910a7fc05c4fae05e231f6))
+
+## [2.32.0](https://github.com/g0ldyy/comet/compare/v2.31.0...v2.32.0) (2025-12-10)
+
+
+### Features
+
+* add catalog and magnet resolve timeouts to configuration ([eb3b5e8](https://github.com/g0ldyy/comet/commit/eb3b5e87c76729ba15c9110dd068256f3f57bbf6))
+* add timeouts to Prowlarr API requests ([c0d7060](https://github.com/g0ldyy/comet/commit/c0d70607b28164f6e29ca7481bf17ea0fa126b64))
+* decouple Jackett and Prowlarr scraper configurations from a generic indexer manager ([d17cb2d](https://github.com/g0ldyy/comet/commit/d17cb2d7b3b1c3d72f7b2df92a47f853d71a89fd))
+* decouple Jackett and Prowlarr scraper configurations from a generic indexer manager ([460fad2](https://github.com/g0ldyy/comet/commit/460fad22b48ddcf465fd4f126a244bb1295bec1d))
+
+## [Unreleased]
+
+### Features
+
+* add optional PostgreSQL read replica routing with transparent primary fallback
+* add optional database-backed anime mapping cache with configurable refresh interval
+* add `GUNICORN_PRELOAD_APP` setting to control whether workers inherit a preloaded app or initialize independently
+* add `DATABASE_STARTUP_CLEANUP_INTERVAL` to throttle heavy startup cleanup sweeps across workers
+* add `DISABLE_TORRENT_STREAMS` toggle with customizable placeholder stream metadata
+
+## [2.31.0](https://github.com/g0ldyy/comet/compare/v2.30.0...v2.31.0) (2025-12-08)
+
+
+### Features
+
+* Enhance URL encoding by using `safe=''` in `quote` calls for playback and magnet URIs ([5664a86](https://github.com/g0ldyy/comet/commit/5664a86eeb9a991796ff0d60e3c79f8bdbb5532d))
+* Enhance URL encoding by using `safe=''` in `quote` calls for playback and magnet URIs ([96a962f](https://github.com/g0ldyy/comet/commit/96a962faac555390bb9c461e345542324bdeb372))
+
+
+### Bug Fixes
+
+* double quote is better ([b9845dc](https://github.com/g0ldyy/comet/commit/b9845dc50d86d33ed690b23b401a6f0efbc8abb2))
+* Update YGG domain URL ([a9b223f](https://github.com/g0ldyy/comet/commit/a9b223f1cd713744693d576c830e9618471b39d0))
+
+## [2.30.0](https://github.com/g0ldyy/comet/compare/v2.29.0...v2.30.0) (2025-12-01)
+
+
+### Features
+
+* add live torrent cache TTL and update related settings ([6e2e420](https://github.com/g0ldyy/comet/commit/6e2e420d7379824d9b76ca603703f914349cf20b))
+* enhance admin dashboard with dynamic tracker limit selection and optimize database metrics query ([5df4121](https://github.com/g0ldyy/comet/commit/5df412125bbd668661473a5512f1f9c0b22d6b93))
+* fix imdb_id: in media_id ([607b5b3](https://github.com/g0ldyy/comet/commit/607b5b38a39b412d73f0e021048735de8dbf4d3f))
+
+
+### Bug Fixes
+
+* Strip 'imdb_id:' prefix from media ID in stream endpoint ([cc5b6a8](https://github.com/g0ldyy/comet/commit/cc5b6a8c95d88b5769cce0e2b27d2aa586bfcc07))
+
+## [2.29.0](https://github.com/g0ldyy/comet/compare/v2.28.0...v2.29.0) (2025-11-28)
+
+
+### Features
+
+* add YGGTorrent scraper ([4a677bf](https://github.com/g0ldyy/comet/commit/4a677bf773f6e6351aee698b137b467bb23473ae))
+* add YGGTorrent scraper ([2317e88](https://github.com/g0ldyy/comet/commit/2317e884e215c4f6367d05b19d77e1971fccf612))
+* enhance playback functionality with media_id and aliases support ([eb9cbdc](https://github.com/g0ldyy/comet/commit/eb9cbdc680a491575457af6f8c8ac198533f8895))
+
+
+### Bug Fixes
+
+* handle missing results count in YGGTorrent scraper ([52c7718](https://github.com/g0ldyy/comet/commit/52c7718c0eaf6eeee2264022b268075257eb36f2))
+* remove double-nested append ([4763307](https://github.com/g0ldyy/comet/commit/47633073f0aec345a3fad7b63a11bb2b9d9c98cf))
+
+## [2.28.0](https://github.com/g0ldyy/comet/compare/v2.27.0...v2.28.0) (2025-11-24)
+
+
+### Features
+
+* fix Debridio scraper ([85c0aee](https://github.com/g0ldyy/comet/commit/85c0aee7dcf7c3a641bfaa079c4c7b5428e298bf))
+* fix Debridio scraper ([3f93e1e](https://github.com/g0ldyy/comet/commit/3f93e1e783a6b491c5d3837b08eae4fded1cc396))
+
+## [2.27.0](https://github.com/g0ldyy/comet/compare/v2.26.0...v2.27.0) (2025-11-24)
+
+
+### Features
+
+* add handling for empty torrent lists in filter_manager ([aef2549](https://github.com/g0ldyy/comet/commit/aef2549f3697707a433a4ff459703a27aa1623b4))
+* add logging for scraper activity in TorrentManager ([6324112](https://github.com/g0ldyy/comet/commit/63241126a2980f54230412e4a63e904b9e0804a5))
+* add metrics caching functionality and update settings for metrics cache TTL ([e3c269b](https://github.com/g0ldyy/comet/commit/e3c269ba050be48a834bbf9cbe0609415362cee7))
+
+## [2.26.0](https://github.com/g0ldyy/comet/compare/v2.25.2...v2.26.0) (2025-11-23)
+
+
+### Features
+
+* bitmagnet scraper ([26e3e5e](https://github.com/g0ldyy/comet/commit/26e3e5eb757c515c6335ad72cdb4547d833b46d7))
+* bitmagnet scraper ([3619fe5](https://github.com/g0ldyy/comet/commit/3619fe50849cab54f84070e7e79a78926d9fa03f))
+
+## [2.25.2](https://github.com/g0ldyy/comet/compare/v2.25.1...v2.25.2) (2025-11-04)
+
+
+### Bug Fixes
+
+* use get method for safer access to seeders, tracker, and sources maps ([43e92a2](https://github.com/g0ldyy/comet/commit/43e92a2990dd3002a629e61b02d035b5910a315b))
+
+## [2.25.1](https://github.com/g0ldyy/comet/compare/v2.25.0...v2.25.1) (2025-10-22)
+
+
+### Bug Fixes
+
+* update playback route to accept path parameters ([7658949](https://github.com/g0ldyy/comet/commit/76589492dc18d2cc9846643e0fe52d5281e687c2))
+
+## [2.25.0](https://github.com/g0ldyy/comet/compare/v2.24.1...v2.25.0) (2025-10-19)
+
+
+### Features
+
+* remove normalize_title from metadata handling ([35d2171](https://github.com/g0ldyy/comet/commit/35d217168da40f3de20e2ea03c9d29d2c1512ace))
+
+
+### Bug Fixes
+
+* update title matching logic in StremThru and TorrentManager ([657748c](https://github.com/g0ldyy/comet/commit/657748c1e1973b1000ccbad8383760f84a6bed74))
+
+## [2.24.1](https://github.com/g0ldyy/comet/compare/v2.24.0...v2.24.1) (2025-10-18)
+
+
+### Bug Fixes
+
+* rtn ranking model ([831a0cf](https://github.com/g0ldyy/comet/commit/831a0cfeabac55b77f91a0d242ea198d95dba917))
+
 ## [2.24.0](https://github.com/g0ldyy/comet/compare/v2.23.0...v2.24.0) (2025-10-05)
 
 

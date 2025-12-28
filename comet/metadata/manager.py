@@ -1,16 +1,15 @@
-import aiohttp
 import asyncio
 import time
+
+import aiohttp
 import orjson
 
-from RTN.patterns import normalize_title
+from comet.core.models import database, settings
+from comet.services.anime import anime_mapper
+from comet.utils.parsing import parse_media_id
 
-from comet.utils.models import database, settings
-from comet.utils.general import parse_media_id
-from comet.utils.anime_mapper import anime_mapper
-
-from .kitsu import get_kitsu_metadata, get_kitsu_aliases
 from .imdb import get_imdb_metadata
+from .kitsu import get_kitsu_aliases, get_kitsu_metadata
 from .trakt import get_trakt_aliases
 
 
@@ -90,7 +89,7 @@ class MetadataScraper:
             return None
 
         return {
-            "title": normalize_title(title),
+            "title": title,
             "year": year,
             "year_end": year_end,
             "season": season,
@@ -124,7 +123,7 @@ class MetadataScraper:
             return get_cached[0], get_cached[1]
 
         metadata = {
-            "title": normalize_title(title),
+            "title": title,
             "year": year,
             "year_end": year_end,
         }
@@ -186,7 +185,7 @@ class MetadataScraper:
             # Check if this IMDB ID has a Kitsu equivalent for additional aliases
             kitsu_id = anime_mapper.get_kitsu_from_imdb(media_id)
             if kitsu_id:
-                kitsu_aliases = await get_kitsu_aliases(self.session, str(kitsu_id))
+                kitsu_aliases = await get_kitsu_aliases(self.session, kitsu_id)
 
         # Combine the aliases from both sources
         return self.combine_aliases(kitsu_aliases, trakt_aliases)
