@@ -1,16 +1,15 @@
 import asyncio
-import time
 
-import aiohttp
 import orjson
 from RTN import DefaultRanking, ParsedData
 
+from comet.core.execution import get_executor
 from comet.core.logger import logger
-from comet.core.models import CometSettingsModel, database, settings
+from comet.core.models import CometSettingsModel, database
 from comet.scrapers.manager import scraper_manager
 from comet.services.filtering import filter_worker
 from comet.services.ranking import rank_worker
-from comet.utils.parsing import default_dump
+from comet.services.torrent_manager import torrent_update_queue
 
 
 class TorrentManager:
@@ -53,7 +52,6 @@ class TorrentManager:
 
     async def scrape_torrents(
         self,
-        session: aiohttp.ClientSession,
     ):
         from comet.scrapers.models import ScrapeRequest
 
@@ -69,10 +67,10 @@ class TorrentManager:
             context=self.context,
         )
 
-        async for scraper_name, results in scraper_manager.scrape_all(request, session):
+        async for scraper_name, results in scraper_manager.scrape_all(request):
             await self.filter_manager(scraper_name, results)
 
-        await self.cache_torrents()
+        asyncio.create_task(self.cache_torrents())
 
         for torrent in self.ready_to_cache:
             season = torrent["parsed"].seasons[0] if torrent["parsed"].seasons else None
@@ -104,14 +102,11 @@ class TorrentManager:
                 WHERE media_id = :media_id
                 AND ((season IS NOT NULL AND season = CAST(:season as INTEGER)) OR (season IS NULL AND CAST(:season as INTEGER) IS NULL))
                 AND (episode IS NULL OR episode = CAST(:episode as INTEGER))
-                AND timestamp + :cache_ttl >= :current_time
             """,
             {
                 "media_id": self.media_only_id,
                 "season": self.season,
                 "episode": self.episode,
-                "cache_ttl": settings.LIVE_TORRENT_CACHE_TTL,
-                "current_time": time.time(),
             },
         )
 
@@ -128,41 +123,24 @@ class TorrentManager:
             }
 
     async def cache_torrents(self):
-        current_time = time.time()
-        values = [
-            {
-                "media_id": self.media_only_id,
+        for torrent in self.ready_to_cache:
+            file_info = {
                 "info_hash": torrent["infoHash"],
-                "file_index": int(torrent["fileIndex"])
-                if torrent["fileIndex"] is not None
-                else None,
+                "index": torrent["fileIndex"],
+                "title": torrent["title"],
+                "size": torrent["size"],
                 "season": torrent["parsed"].seasons[0]
                 if torrent["parsed"].seasons
                 else self.season,
                 "episode": torrent["parsed"].episodes[0]
                 if torrent["parsed"].episodes
                 else None,
-                "title": torrent["title"],
-                "seeders": int(torrent["seeders"])
-                if torrent["seeders"] is not None
-                else None,
-                "size": int(torrent["size"]) if torrent["size"] is not None else None,
+                "parsed": torrent["parsed"],
+                "seeders": torrent["seeders"],
                 "tracker": torrent["tracker"],
-                "sources": orjson.dumps(torrent["sources"]).decode("utf-8"),
-                "parsed": orjson.dumps(torrent["parsed"], default_dump).decode("utf-8"),
-                "timestamp": current_time,
+                "sources": torrent["sources"],
             }
-            for torrent in self.ready_to_cache
-        ]
-
-        query = f"""
-            INSERT {"OR REPLACE " if settings.DATABASE_TYPE == "sqlite" else ""}
-            INTO torrents
-            VALUES (:media_id, :info_hash, :file_index, :season, :episode, :title, :seeders, :size, :tracker, :sources, :parsed, :timestamp)
-            {" ON CONFLICT DO NOTHING" if settings.DATABASE_TYPE == "postgresql" else ""}
-        """
-
-        await database.execute_many(query, values)
+            await torrent_update_queue.add_torrent_info(file_info, self.media_only_id)
 
     async def filter_manager(self, scraper_name: str, torrents: list):
         if len(torrents) == 0:
@@ -188,10 +166,10 @@ class TorrentManager:
             return
 
         loop = asyncio.get_running_loop()
-        chunk_size = 50
+        chunk_size = 20
         tasks = [
             loop.run_in_executor(
-                None,
+                get_executor(),
                 filter_worker,
                 new_torrents[i : i + chunk_size],
                 self.title,
@@ -217,7 +195,7 @@ class TorrentManager:
     ):
         loop = asyncio.get_running_loop()
         self.ranked_torrents = await loop.run_in_executor(
-            None,
+            get_executor(),
             rank_worker,
             self.torrents,
             self.debrid_service,

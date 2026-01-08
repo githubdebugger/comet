@@ -5,7 +5,7 @@
 - The first Stremio addon to Proxy Debrid Streams to allow use of the Debrid Service on multiple IPs at the same time on the same account!
 - IP-Based Max Connection Limit
 - Administration Dashboard with Bandwidth Manager, Metrics and more...
-- Supported Scrapers: Jackett, Prowlarr, Torrentio, Zilean, MediaFusion, Debridio, StremThru, AIOStreams, Comet, Jackettio, TorBox and Nyaa
+- Supported Scrapers: Jackett, Prowlarr, Torrentio, Zilean, MediaFusion, Debridio, StremThru, AIOStreams, Comet, Jackettio, TorBox, Nyaa, BitMagnet and TorrentsDB
 - Caching system ft. SQLite / PostgreSQL
 - Blazing Fast Background Scraper
 - Smart Torrent Ranking powered by [RTN](https://github.com/dreulavelle/rank-torrent-name)
@@ -51,7 +51,7 @@ ElfHosted offer "one-click" [private Comet instances](https://elfhosted.com/app/
 
 ### With Docker Compose
 - Copy *deployment/docker-compose.yml* in a directory
-- Copy *.env-sample* to *.env* in the same directory and keep only the variables you wish to modify, also remove all comments
+- Create a `.env` file in the same directory and add only the variables you wish to modify. All other variables will use the default values from `.env-sample`.
 - Pull the latest version from docker hub
     ```sh
       docker compose pull

@@ -2,6 +2,121 @@
 
 <!-- markdownlint-disable MD024 -->
 
+## [2.46.0](https://github.com/g0ldyy/comet/compare/v2.45.0...v2.46.0) (2026-01-06)
+
+
+### Features
+
+* add AnimeTosho scraper ([1b87b1e](https://github.com/g0ldyy/comet/commit/1b87b1e5017d06f59c63990d0ccb1c714a8494b5))
+
+## [2.45.0](https://github.com/g0ldyy/comet/compare/v2.44.0...v2.45.0) (2026-01-06)
+
+
+### Features
+
+* add `RTN_FILTER_DEBUG` setting to enable verbose logging for torrent filtering rejections ([b9cc11d](https://github.com/g0ldyy/comet/commit/b9cc11d109a68bac31732ed1ec7f253ae4ba1463))
+* add `RTN_FILTER_DEBUG` setting to enable verbose logging for torrent filtering rejections ([ddaafa2](https://github.com/g0ldyy/comet/commit/ddaafa22ca7b73bc62994da33f23bb0560488c3b))
+* allow configuration of ProcessPoolExecutor max workers with auto-detection and logging ([c6c5c42](https://github.com/g0ldyy/comet/commit/c6c5c42b974d6fe50ab3fd196d524345015d5dee))
+* allow configuration of ProcessPoolExecutor max workers with auto-detection and logging ([7e98d1f](https://github.com/g0ldyy/comet/commit/7e98d1f067b864261c40a871bdc6f98f38c7e0d5))
+* introduce `update_interval` for torrent upsert logic and implement batched upsert for SQLite ([6b83124](https://github.com/g0ldyy/comet/commit/6b831243ca289b7ae9323018161e4fb9a092396c))
+* introduce configurable exponential backoff for 429 rate limit errors ([b65c285](https://github.com/g0ldyy/comet/commit/b65c2857f9894a57939ee6a86833317ea730e983))
+* optimize PostgreSQL database operations by adding a covering index, enhancing debrid cache upserts with conditional updates, and refactoring torrent manager's advisory locking ([3911533](https://github.com/g0ldyy/comet/commit/39115334d81de44c4cb351b05f2fa86f0bab286e))
+* switch from session-level to transaction-level PostgreSQL advisory locks for database cleanup and batched upserts ([04dfd38](https://github.com/g0ldyy/comet/commit/04dfd38c8f892af72d33641ab3b8af900e68b3e3))
+* update BitMagnet scraper to use IMDb ID and media type for queries ([3ef2d34](https://github.com/g0ldyy/comet/commit/3ef2d3454bbd456da43ff29c21e125e2e51a1f27))
+* update BitMagnet scraper to use IMDb ID and media type for queries ([f53c53b](https://github.com/g0ldyy/comet/commit/f53c53ba1726e2f88f747b0395aee9d462130811))
+
+
+### Bug Fixes
+
+* add error handling for torrent title extraction and unreleased content in comet scraper ([7db932f](https://github.com/g0ldyy/comet/commit/7db932ff66c86c3fd30502f5bdadb2a703b88bf7))
+* correctly handle `None` values for season and episode parameters in API requests for bitmagnet ([9b91793](https://github.com/g0ldyy/comet/commit/9b9179371daf0e91f345b328dfda309941f68724))
+* preserve original traceback when re-raising exceptions ([b1cf30b](https://github.com/g0ldyy/comet/commit/b1cf30b4e82f51ec6695e10efde4589979220f09))
+* remove 60-second minimum for live torrent cache update interval calculation ([0b27e3c](https://github.com/g0ldyy/comet/commit/0b27e3cb4d43f26d45840a4aa5efa84ada7d113c))
+* remove early exit when torrent content is not digitally released ([9137096](https://github.com/g0ldyy/comet/commit/913709628874699eb6664c5a4e5005a8cf98396e))
+
+
+### Performance Improvements
+
+* add `idx_torrents_info_hash` for improved lookup performance ([b669b37](https://github.com/g0ldyy/comet/commit/b669b379c07ba28c8ea8abdff058b77786e1b350))
+* add index on torrents (info_hash, season) to optimize concurrent DELETE operations ([980fe19](https://github.com/g0ldyy/comet/commit/980fe194f63003bc464fe5ac0919f804d3171698))
+* remove conditional check for empty `sanitized_rows` before `execute_many` database call ([f1d3ea3](https://github.com/g0ldyy/comet/commit/f1d3ea3bdbee02a06785e9ae60f2bfd64d6f06e7))
+* remove PostgreSQL covering index `idx_torrents_covering` for torrents table ([4f0be0a](https://github.com/g0ldyy/comet/commit/4f0be0a786681cfac1f8e43d98c538abdf762cb9))
+* use non-blocking advisory locks and conditionally insert rows based on lock acquisition ([fb47fa5](https://github.com/g0ldyy/comet/commit/fb47fa51f862ee68b483d250555346455e8d3f56))
+* use non-blocking advisory locks and conditionally insert rows based on lock acquisition ([60ff4be](https://github.com/g0ldyy/comet/commit/60ff4be61c84fabfce1d664ed464a42f3006e6eb))
+
+## [2.44.0](https://github.com/g0ldyy/comet/compare/v2.43.0...v2.44.0) (2026-01-04)
+
+
+### Features
+
+* add new scraper configurations and clarify the `PROXY_ETHOS` `on_failure` option in the sample environment file ([4a34aad](https://github.com/g0ldyy/comet/commit/4a34aad8b7dfc32b18b868f57cbd6b60460e36bb))
+* add TorrentsDB scraper and remove redundant `pass` statements in other scrapers ([f486247](https://github.com/g0ldyy/comet/commit/f4862470a50b4463f1d287bb48688c8a4ab3e343))
+* add TorrentsDB scraper and remove redundant `pass` statements in other scrapers ([c26140d](https://github.com/g0ldyy/comet/commit/c26140d6ce5ef0474ca2d1f616af138560f158ed))
+* enable dynamic proxy configuration by allowing extra Pydantic settings fields and setting the default proxy ethos to 'always' ([bbeafd7](https://github.com/g0ldyy/comet/commit/bbeafd7ac0e975f49bac68cbe0dd7b381b70d13e))
+* enhance network manager with proxy hostname resolution for curl_cffi ([65a7464](https://github.com/g0ldyy/comet/commit/65a7464acc1cbc84953aac19f99fc8024a984bb0))
+* refactor live torrent caching to differentiate between displaying existing results and triggering new scrapes, and update default cache TTLs ([7dde28d](https://github.com/g0ldyy/comet/commit/7dde28d88d409b1549a0dadd5cd4c2cc60bd3552))
+* refactor live torrent caching to differentiate between displaying existing results and triggering new scrapes, and update default cache TTLs ([7af6d09](https://github.com/g0ldyy/comet/commit/7af6d0980b2f22f9f9e0cf4edb5e236945bc36dd))
+
+
+### Bug Fixes
+
+* background scraper can't scrape tv shows ([620dca3](https://github.com/g0ldyy/comet/commit/620dca33c87511e7f8c4b43feaccf3ec47c94224))
+
+## [2.43.0](https://github.com/g0ldyy/comet/compare/v2.42.0...v2.43.0) (2026-01-02)
+
+
+### Features
+
+* add configurable `PROXY_DEBRID_STREAM_INACTIVITY_THRESHOLD` setting to enable and refine the cleanup of inactive debrid stream connections ([cfc0eae](https://github.com/g0ldyy/comet/commit/cfc0eaea847779e111b63a26d93f50714d859ab8))
+* add configurable `PROXY_DEBRID_STREAM_INACTIVITY_THRESHOLD` setting to enable and refine the cleanup of inactive debrid stream connections ([aef99f4](https://github.com/g0ldyy/comet/commit/aef99f43bed584f352c469c143693fdf27eb7b21))
+* add configuration and UI option to sort cached and uncached stream results together ([a472595](https://github.com/g0ldyy/comet/commit/a4725958d051a11eed651a065578691ec0d2e1d6))
+* add configuration and UI option to sort cached and uncached stream results together ([5fda0df](https://github.com/g0ldyy/comet/commit/5fda0df1a98f313c49fdd3e65eafd24ae792924e))
+* populate `sortCachedUncachedTogether` checkbox from settings ([a5698b2](https://github.com/g0ldyy/comet/commit/a5698b28ac64996e675dcf49867192286b5a33db))
+
+## [2.42.0](https://github.com/g0ldyy/comet/compare/v2.41.0...v2.42.0) (2026-01-02)
+
+
+### Features
+
+* add fallback to check watch providers for movie release dates when upcoming release date is unavailable ([ac2cafb](https://github.com/g0ldyy/comet/commit/ac2cafb8abc1c46f8d44c8682f80e0ea0b0cdf2f))
+* add fallback to check watch providers for movie release dates when upcoming release date is unavailable ([6b6e466](https://github.com/g0ldyy/comet/commit/6b6e466c7d053be137127d38d924e296cc03f192))
+* enhance client IP detection by checking multiple headers and validating IP addresses ([a584432](https://github.com/g0ldyy/comet/commit/a5844323d9a2fee4454fc88a4202a9c0e9d43519))
+* enhance client IP detection by checking multiple headers and validating IP addresses ([b64b7f6](https://github.com/g0ldyy/comet/commit/b64b7f6e57f321fad8671a8412b7d919e36285d4))
+
+## [2.41.0](https://github.com/g0ldyy/comet/compare/v2.40.0...v2.41.0) (2026-01-01)
+
+
+### Features
+
+* improve torrent batch processing with in-memory deduplication, PostgreSQL advisory locks, and enhance metadata handling ([ac061ac](https://github.com/g0ldyy/comet/commit/ac061acd71e3d68574f2cb22cdbc06fe705d78f8))
+* improve torrent batch processing with in-memory deduplication, PostgreSQL advisory locks, and enhance metadata handling ([45ff7c1](https://github.com/g0ldyy/comet/commit/45ff7c173abb49a050c4ba14103fe6beae845d32))
+
+
+### Bug Fixes
+
+* add explicit BIGINT casting to timestamp comparisons in cache cleanup queries ([a52e5c0](https://github.com/g0ldyy/comet/commit/a52e5c06a57f6c7d36d2eeb6cf68779b9a6d92f5))
+
+## [2.40.0](https://github.com/g0ldyy/comet/compare/v2.39.0...v2.40.0) (2025-12-31)
+
+
+### Features
+
+* conditionally apply digital release filter based on settings and remove redundant internal filter check ([489ed9b](https://github.com/g0ldyy/comet/commit/489ed9bdbe79aef571cbccb3b3742c4f9162c04e))
+* implement digital release filtering for movies and series using TMDB ([172fb5b](https://github.com/g0ldyy/comet/commit/172fb5b7d454fabf34670daae150d177b439de4e))
+* implement digital release filtering for movies and series using TMDB ([e05a0da](https://github.com/g0ldyy/comet/commit/e05a0da0665e8bd48a3a6cf7e696f012f74c28ca))
+* improve performance with process pool executor and optimize torrent caching/database writes ([5666a7d](https://github.com/g0ldyy/comet/commit/5666a7d019dcb3039ca6d30fa4f6908d6c58dca4))
+* improve performance with process pool executor and optimize torrent caching/database writes ([0ce6579](https://github.com/g0ldyy/comet/commit/0ce6579f3ff740cf2a91f5c9d6d9ee8eea6b8010))
+
+
+### Bug Fixes
+
+* update digital_release_cache.release_date column type to BIGINT ([7219330](https://github.com/g0ldyy/comet/commit/7219330bbe0fdefd292f7b90cce18b5286a2d756))
+
+
+### Performance Improvements
+
+* reduce RTN parsing chunk size to 20 and rework ProcessPoolExecutor system ([32e5127](https://github.com/g0ldyy/comet/commit/32e5127dd322b487948557c5b5a077e8548802e1))
+
 ## [2.39.0](https://github.com/g0ldyy/comet/compare/v2.38.0...v2.39.0) (2025-12-28)
 
 

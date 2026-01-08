@@ -21,6 +21,8 @@ async def setup_database():
 
         await database.connect()
 
+        await _migrate_indexes()
+
         await database.execute(
             """
                 CREATE TABLE IF NOT EXISTS db_version (
@@ -82,15 +84,6 @@ async def setup_database():
                 CREATE TABLE IF NOT EXISTS db_maintenance (
                     id INTEGER PRIMARY KEY CHECK (id = 1),
                     last_startup_cleanup REAL
-                )
-            """
-        )
-
-        await database.execute(
-            """
-                CREATE TABLE IF NOT EXISTS ongoing_searches (
-                    media_id TEXT PRIMARY KEY, 
-                    timestamp INTEGER
                 )
             """
         )
@@ -159,7 +152,7 @@ async def setup_database():
 
         await database.execute(
             """
-            CREATE UNIQUE INDEX IF NOT EXISTS torrents_series_both_idx 
+            CREATE UNIQUE INDEX IF NOT EXISTS unq_torrents_series 
             ON torrents (media_id, info_hash, season, episode) 
             WHERE season IS NOT NULL AND episode IS NOT NULL
             """
@@ -167,7 +160,7 @@ async def setup_database():
 
         await database.execute(
             """
-            CREATE UNIQUE INDEX IF NOT EXISTS torrents_season_only_idx 
+            CREATE UNIQUE INDEX IF NOT EXISTS unq_torrents_season 
             ON torrents (media_id, info_hash, season) 
             WHERE season IS NOT NULL AND episode IS NULL
             """
@@ -175,7 +168,7 @@ async def setup_database():
 
         await database.execute(
             """
-            CREATE UNIQUE INDEX IF NOT EXISTS torrents_episode_only_idx 
+            CREATE UNIQUE INDEX IF NOT EXISTS unq_torrents_episode 
             ON torrents (media_id, info_hash, episode) 
             WHERE season IS NULL AND episode IS NOT NULL
             """
@@ -183,7 +176,7 @@ async def setup_database():
 
         await database.execute(
             """
-            CREATE UNIQUE INDEX IF NOT EXISTS torrents_no_season_episode_idx 
+            CREATE UNIQUE INDEX IF NOT EXISTS unq_torrents_movie 
             ON torrents (media_id, info_hash) 
             WHERE season IS NULL AND episode IS NULL
             """
@@ -207,7 +200,7 @@ async def setup_database():
 
         await database.execute(
             """
-            CREATE UNIQUE INDEX IF NOT EXISTS debrid_series_both_idx 
+            CREATE UNIQUE INDEX IF NOT EXISTS unq_debrid_series 
             ON debrid_availability (debrid_service, info_hash, season, episode) 
             WHERE season IS NOT NULL AND episode IS NOT NULL
             """
@@ -215,7 +208,7 @@ async def setup_database():
 
         await database.execute(
             """
-            CREATE UNIQUE INDEX IF NOT EXISTS debrid_season_only_idx 
+            CREATE UNIQUE INDEX IF NOT EXISTS unq_debrid_season 
             ON debrid_availability (debrid_service, info_hash, season) 
             WHERE season IS NOT NULL AND episode IS NULL
             """
@@ -223,7 +216,7 @@ async def setup_database():
 
         await database.execute(
             """
-            CREATE UNIQUE INDEX IF NOT EXISTS debrid_episode_only_idx 
+            CREATE UNIQUE INDEX IF NOT EXISTS unq_debrid_episode 
             ON debrid_availability (debrid_service, info_hash, episode) 
             WHERE season IS NULL AND episode IS NOT NULL
             """
@@ -231,7 +224,7 @@ async def setup_database():
 
         await database.execute(
             """
-            CREATE UNIQUE INDEX IF NOT EXISTS debrid_no_season_episode_idx 
+            CREATE UNIQUE INDEX IF NOT EXISTS unq_debrid_movie 
             ON debrid_availability (debrid_service, info_hash) 
             WHERE season IS NULL AND episode IS NULL
             """
@@ -294,10 +287,10 @@ async def setup_database():
         )
 
         await database.execute(
-            f"""
+            """
                 CREATE TABLE IF NOT EXISTS bandwidth_stats (
                     id INTEGER PRIMARY KEY, 
-                    total_bytes {"INTEGER" if settings.DATABASE_TYPE == "sqlite" else "BIGINT"}, 
+                    total_bytes BIGINT, 
                     last_updated INTEGER
                 )
             """
@@ -361,19 +354,40 @@ async def setup_database():
             """
         )
 
-        # =============================================================================
-        # TORRENTS TABLE INDEXES - Most critical for performance
-        # =============================================================================
-
-        # Primary lookup index: media_id + season + episode + timestamp (cache TTL filter)
         await database.execute(
             """
-            CREATE INDEX IF NOT EXISTS idx_torrents_media_cache_lookup 
+                CREATE TABLE IF NOT EXISTS digital_release_cache (
+                    media_id TEXT PRIMARY KEY,
+                    release_date BIGINT,
+                    timestamp INTEGER
+                )
+            """
+        )
+
+        # =============================================================================
+        # TORRENTS TABLE INDEXES
+        # =============================================================================
+
+        # Primary lookup index: media_id + season + episode (nullable) + timestamp
+        # Covers: get_cached_torrents, check_torrents_cache
+        await database.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_torrents_lookup 
             ON torrents (media_id, season, episode, timestamp)
             """
         )
 
-        # Info hash lookup for playback (very frequent)
+        # Optimization for concurrent DELETEs: info_hash + season
+        # Covers: DELETE FROM torrents WHERE (info_hash, season) IN (...)
+        await database.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_torrents_info_hash_season 
+            ON torrents (info_hash, season)
+            """
+        )
+
+        # Optimization for lookups by info_hash only
+        # Covers: SELECT sources, media_id FROM torrents WHERE info_hash = $1
         await database.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_torrents_info_hash 
@@ -381,68 +395,21 @@ async def setup_database():
             """
         )
 
-        # Analytics queries: tracker-based aggregation
-        await database.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_torrents_tracker_analytics 
-            ON torrents (tracker, seeders, size)
-            """
-        )
-
-        # Size filtering for user preferences
-        await database.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_torrents_size_filter 
-            ON torrents (size, timestamp)
-            """
-        )
-
-        # Seeders ordering for quality ranking
-        await database.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_torrents_seeders_desc 
-            ON torrents (seeders DESC, timestamp)
-            """
-        )
-
         # =============================================================================
-        # DEBRID_AVAILABILITY TABLE INDEXES - Critical for cache performance
+        # DEBRID_AVAILABILITY TABLE INDEXES
         # =============================================================================
 
-        # Primary cache lookup: service + info_hash list + timestamp
+        # Primary lookup index: service + info_hash + timestamp
+        # Covers: get_cached_availability (info_hash IN ...)
         await database.execute(
             """
-            CREATE INDEX IF NOT EXISTS idx_debrid_service_hash_cache 
+            CREATE INDEX IF NOT EXISTS idx_debrid_lookup 
             ON debrid_availability (debrid_service, info_hash, timestamp)
             """
         )
 
-        # Season/episode filtering for series content
-        await database.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_debrid_season_episode_filter 
-            ON debrid_availability (debrid_service, season, episode, timestamp)
-            """
-        )
-
-        # Service-based analytics and cleanup
-        await database.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_debrid_service_timestamp 
-            ON debrid_availability (debrid_service, timestamp)
-            """
-        )
-
-        # Title filtering for OffCloud special case
-        await database.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_debrid_title_filter 
-            ON debrid_availability (debrid_service, info_hash, title, timestamp)
-            """
-        )
-
         # =============================================================================
-        # DOWNLOAD_LINKS_CACHE TABLE INDEXES - Playback performance
+        # DOWNLOAD_LINKS_CACHE TABLE INDEXES
         # =============================================================================
 
         # Primary playback lookup: debrid_key + info_hash + season + episode
@@ -462,7 +429,7 @@ async def setup_database():
         )
 
         # =============================================================================
-        # METADATA_CACHE TABLE INDEXES - Metadata performance
+        # METADATA_CACHE TABLE INDEXES
         # =============================================================================
 
         # Primary cache lookup: media_id + timestamp
@@ -473,29 +440,8 @@ async def setup_database():
             """
         )
 
-        # Title search for metadata discovery
-        await database.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_metadata_title_search 
-            ON metadata_cache (title, year, timestamp)
-            """
-        )
-
         # =============================================================================
-        # FIRST_SEARCHES TABLE INDEXES - Search optimization
-        # =============================================================================
-
-        # Primary search check: media_id (already PRIMARY KEY, but explicit for clarity)
-        # Media ID is already PRIMARY KEY, so focusing on timestamp for TTL cleanup
-        await database.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_first_searches_cleanup 
-            ON first_searches (timestamp)
-            """
-        )
-
-        # =============================================================================
-        # ACTIVE_CONNECTIONS TABLE INDEXES - Admin dashboard performance
+        # ACTIVE_CONNECTIONS TABLE INDEXES
         # =============================================================================
 
         # Admin dashboard ordering: timestamp DESC (most recent first)
@@ -522,18 +468,6 @@ async def setup_database():
             """
         )
 
-        # =============================================================================
-        # SCRAPE_LOCKS TABLE INDEXES - Lock management
-        # =============================================================================
-
-        # Expired locks cleanup: expires_at < current_time
-        await database.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_scrape_locks_expires 
-            ON scrape_locks (expires_at)
-            """
-        )
-
         # Instance-based lock monitoring
         await database.execute(
             """
@@ -543,7 +477,7 @@ async def setup_database():
         )
 
         # =============================================================================
-        # ADMIN_SESSIONS TABLE INDEXES - Authentication performance
+        # ADMIN_SESSIONS TABLE INDEXES
         # =============================================================================
 
         # Session cleanup: expires_at < current_time
@@ -555,7 +489,7 @@ async def setup_database():
         )
 
         # =============================================================================
-        # BACKGROUND_SCRAPER_STATE TABLE INDEXES - Scraper performance
+        # BACKGROUND_SCRAPER_STATE TABLE INDEXES
         # =============================================================================
 
         # Media type filtering for scraper analytics
@@ -582,38 +516,17 @@ async def setup_database():
             """
         )
 
-        # =============================================================================
-        # COMPOSITE INDEXES FOR COMPLEX QUERIES
-        # =============================================================================
-
-        # Torrents: media + quality filtering + cache validity
-        await database.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_torrents_quality_cache 
-            ON torrents (media_id, seeders DESC, size DESC, timestamp)
-            """
-        )
-
-        # Debrid: comprehensive availability lookup
-        await database.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_debrid_comprehensive 
-            ON debrid_availability (debrid_service, info_hash, season, episode, size, timestamp)
-            """
-        )
-
-        # Background scraper: comprehensive state tracking
-        await database.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_scraper_comprehensive 
-            ON background_scraper_state (media_type, total_torrents_found, scraped_at)
-            """
-        )
-
         await database.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_anime_mapping_imdb
             ON anime_mapping_cache (imdb_id)
+            """
+        )
+
+        await database.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_digital_release_timestamp
+            ON digital_release_cache (timestamp)
             """
         )
 
@@ -630,7 +543,6 @@ async def setup_database():
             await database.execute("PRAGMA secure_delete=OFF")
             await database.execute("PRAGMA auto_vacuum=OFF")
 
-        await database.execute("DELETE FROM ongoing_searches")
         await database.execute("DELETE FROM active_connections")
         await database.execute("DELETE FROM metrics_cache")
 
@@ -656,61 +568,86 @@ async def _run_startup_cleanup():
         logger.log("DATABASE", "Startup cleanup skipped (recent run)")
         return
 
-    lock_acquired = await _try_acquire_startup_cleanup_lock()
-    if not lock_acquired:
-        logger.log("DATABASE", "Startup cleanup already running elsewhere; skipping")
-        return
-
     try:
-        logger.log("DATABASE", "Running startup cleanup sweep")
+        async with database.transaction():
+            if settings.DATABASE_TYPE == "postgresql":
+                acquired = await database.fetch_val(
+                    "SELECT pg_try_advisory_xact_lock(:lock_id)",
+                    {"lock_id": STARTUP_CLEANUP_LOCK_ID},
+                    force_primary=True,
+                )
+                if not acquired:
+                    logger.log(
+                        "DATABASE",
+                        "Startup cleanup already running elsewhere; skipping",
+                    )
+                    return
 
-        await database.execute(
-            """
-            DELETE FROM first_searches 
-            WHERE timestamp + :cache_ttl < :current_time;
-            """,
-            {"cache_ttl": settings.TORRENT_CACHE_TTL, "current_time": current_time},
-        )
+            logger.log("DATABASE", "Running startup cleanup sweep")
 
-        await database.execute(
-            """
-            DELETE FROM metadata_cache 
-            WHERE timestamp + :cache_ttl < :current_time;
-            """,
-            {"cache_ttl": settings.METADATA_CACHE_TTL, "current_time": current_time},
-        )
-
-        if settings.TORRENT_CACHE_TTL >= 0:
             await database.execute(
                 """
-                DELETE FROM torrents
-                WHERE timestamp + :cache_ttl < :current_time;
+                DELETE FROM first_searches 
+                WHERE timestamp < CAST(:current_time AS BIGINT) - CAST(:cache_ttl AS BIGINT);
                 """,
                 {"cache_ttl": settings.TORRENT_CACHE_TTL, "current_time": current_time},
             )
 
-        await database.execute(
-            """
-            DELETE FROM debrid_availability
-            WHERE timestamp + :cache_ttl < :current_time;
-            """,
-            {"cache_ttl": settings.DEBRID_CACHE_TTL, "current_time": current_time},
-        )
+            await database.execute(
+                """
+                DELETE FROM metadata_cache 
+                WHERE timestamp < CAST(:current_time AS BIGINT) - CAST(:cache_ttl AS BIGINT);
+                """,
+                {
+                    "cache_ttl": settings.METADATA_CACHE_TTL,
+                    "current_time": current_time,
+                },
+            )
 
-        await database.execute("DELETE FROM download_links_cache")
+            if settings.TORRENT_CACHE_TTL >= 0:
+                await database.execute(
+                    """
+                    DELETE FROM torrents
+                    WHERE timestamp < CAST(:current_time AS BIGINT) - CAST(:cache_ttl AS BIGINT);
+                    """,
+                    {
+                        "cache_ttl": settings.TORRENT_CACHE_TTL,
+                        "current_time": current_time,
+                    },
+                )
 
-        await database.execute(
-            """
-            INSERT INTO db_maintenance (id, last_startup_cleanup)
-            VALUES (1, :timestamp)
-            ON CONFLICT (id) DO UPDATE SET last_startup_cleanup = :timestamp
-            """,
-            {"timestamp": current_time},
-            force_primary=True,
-        )
-    finally:
-        if lock_acquired:
-            await _release_startup_cleanup_lock()
+            await database.execute(
+                """
+                DELETE FROM debrid_availability
+                WHERE timestamp < CAST(:current_time AS BIGINT) - CAST(:cache_ttl AS BIGINT);
+                """,
+                {"cache_ttl": settings.DEBRID_CACHE_TTL, "current_time": current_time},
+            )
+
+            await database.execute(
+                """
+                DELETE FROM digital_release_cache
+                WHERE timestamp < CAST(:current_time AS BIGINT) - CAST(:cache_ttl AS BIGINT);
+                """,
+                {
+                    "cache_ttl": settings.METADATA_CACHE_TTL,
+                    "current_time": current_time,
+                },
+            )
+
+            await database.execute("DELETE FROM download_links_cache")
+
+            await database.execute(
+                """
+                INSERT INTO db_maintenance (id, last_startup_cleanup)
+                VALUES (1, :timestamp)
+                ON CONFLICT (id) DO UPDATE SET last_startup_cleanup = :timestamp
+                """,
+                {"timestamp": current_time},
+                force_primary=True,
+            )
+    except Exception as e:
+        logger.error(f"Error executing startup cleanup: {e}")
 
 
 async def _should_run_startup_cleanup(current_time: float, interval: int) -> bool:
@@ -723,29 +660,6 @@ async def _should_run_startup_cleanup(current_time: float, interval: int) -> boo
 
     last_run = float(row["last_startup_cleanup"])
     return (current_time - last_run) >= interval
-
-
-async def _try_acquire_startup_cleanup_lock() -> bool:
-    if settings.DATABASE_TYPE != "postgresql":
-        return True
-
-    result = await database.fetch_val(
-        "SELECT pg_try_advisory_lock(:lock_id)",
-        {"lock_id": STARTUP_CLEANUP_LOCK_ID},
-        force_primary=True,
-    )
-    return bool(result)
-
-
-async def _release_startup_cleanup_lock():
-    if settings.DATABASE_TYPE != "postgresql":
-        return
-
-    await database.fetch_val(
-        "SELECT pg_advisory_unlock(:lock_id)",
-        {"lock_id": STARTUP_CLEANUP_LOCK_ID},
-        force_primary=True,
-    )
 
 
 async def cleanup_expired_locks():
@@ -774,6 +688,64 @@ async def cleanup_expired_sessions():
             logger.log("SESSION", f"❌ Error during periodic session cleanup: {e}")
 
         await asyncio.sleep(5)  # Clean up every 5 seconds
+
+
+async def _migrate_indexes():
+    try:
+        old_indexes = [
+            "torrents_series_both_idx",
+            "torrents_season_only_idx",
+            "torrents_episode_only_idx",
+            "torrents_no_season_episode_idx",
+            "idx_torrents_media_cache_lookup",
+            "idx_torrents_tracker_analytics",
+            "idx_torrents_size_filter",
+            "idx_torrents_seeders_desc",
+            "idx_torrents_quality_cache",
+            "idx_torrents_media_season_episode",
+            "debrid_series_both_idx",
+            "debrid_season_only_idx",
+            "debrid_episode_only_idx",
+            "debrid_no_season_episode_idx",
+            "idx_debrid_service_hash_cache",
+            "idx_debrid_season_episode_filter",
+            "idx_debrid_service_timestamp",
+            "idx_debrid_title_filter",
+            "idx_debrid_comprehensive",
+            "idx_debrid_info_hash_season_episode",
+            "idx_debrid_timestamp",
+            "torrents_cache_lookup_idx",
+            "idx_scrape_locks_expires_at",
+            "idx_scrape_locks_lock_key",
+            "idx_torrents_timestamp",
+            "torrents_seeders_idx",
+            "idx_first_searches_cleanup",
+            "idx_metadata_title_search",
+        ]
+
+        dropped_count = 0
+        for index_name in old_indexes:
+            if settings.DATABASE_TYPE == "sqlite":
+                exists = await database.fetch_val(
+                    f"SELECT 1 FROM sqlite_master WHERE type='index' AND name='{index_name}'"
+                )
+            else:
+                exists = await database.fetch_val(
+                    f"SELECT 1 FROM pg_indexes WHERE indexname='{index_name}'"
+                )
+
+            if exists:
+                await database.execute(f"DROP INDEX IF EXISTS {index_name}")
+                dropped_count += 1
+                logger.log("COMET", f"Database: Dropped legacy index '{index_name}'")
+
+        if dropped_count > 0:
+            logger.log(
+                "COMET",
+                f"Database: Legacy indexes cleanup completed. Dropped {dropped_count} indexes.",
+            )
+    except Exception as e:
+        logger.warning(f"Error during index migration: {e}")
 
 
 async def teardown_database():

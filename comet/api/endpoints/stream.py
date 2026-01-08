@@ -8,7 +8,9 @@ from fastapi import APIRouter, BackgroundTasks, Request
 from comet.core.config_validation import config_check
 from comet.core.logger import logger
 from comet.core.models import database, settings, trackers
+from comet.debrid.exceptions import DebridAuthError
 from comet.debrid.manager import get_debrid_extension
+from comet.metadata.filter import release_filter
 from comet.metadata.manager import MetadataScraper
 from comet.services.debrid import DebridService
 from comet.services.lock import DistributedLock, is_scrape_in_progress
@@ -65,7 +67,7 @@ async def background_scrape(
 
     try:
         async with aiohttp.ClientSession() as session:
-            await torrent_manager.scrape_torrents(session)
+            await torrent_manager.scrape_torrents()
 
             if debrid_service != "torrent" and len(torrent_manager.torrents) > 0:
                 debrid_service_instance = DebridService(
@@ -135,6 +137,9 @@ async def stream(
     b64config: str = None,
     chilllink: bool = False,
 ):
+    if media_type not in ["movie", "series"]:
+        return {"streams": []}
+
     if "tmdb:" in media_id:
         return {"streams": []}
 
@@ -147,16 +152,15 @@ async def stream(
                 {
                     "name": "[❌] Comet",
                     "description": f"⚠️ OBSOLETE CONFIGURATION, PLEASE RE-CONFIGURE ON {request.url.scheme}://{request.url.netloc} ⚠️",
-                    "url": "https://comet.fast",
+                    "url": "https://comet.looks.legal",
                 }
             ]
         }
 
     if settings.DISABLE_TORRENT_STREAMS and config["debridService"] == "torrent":
         placeholder_stream = {
-            "name": settings.TORRENT_DISABLED_STREAM_NAME or "[INFO] Comet",
-            "description": settings.TORRENT_DISABLED_STREAM_DESCRIPTION
-            or "Direct torrent playback is disabled on this server.",
+            "name": settings.TORRENT_DISABLED_STREAM_NAME,
+            "description": settings.TORRENT_DISABLED_STREAM_DESCRIPTION,
         }
         if settings.TORRENT_DISABLED_STREAM_URL:
             placeholder_stream["url"] = settings.TORRENT_DISABLED_STREAM_URL
@@ -167,33 +171,75 @@ async def stream(
     async with aiohttp.ClientSession(connector=connector) as session:
         metadata_scraper = MetadataScraper(session)
 
-        # First, check if metadata is already cached
         id, season, episode = parse_media_id(media_type, media_id)
+
+        # Digital Release Filter
+        if settings.DIGITAL_RELEASE_FILTER:
+            is_released = await release_filter.check_is_released(
+                session, media_type, media_id, season, episode
+            )
+
+            if not is_released:
+                logger.log("FILTER", f"🚫 {media_id} is not released yet. Skipping.")
+                return {
+                    "streams": [
+                        {
+                            "name": "[🚫] Comet",
+                            "description": "Content not digitally released yet.",
+                            "url": "https://comet.looks.legal",
+                        }
+                    ]
+                }
+
+        # Check if metadata is already cached
         cached_metadata = await metadata_scraper.get_cached(
             id, season if "kitsu" not in media_id else 1, episode
         )
 
-        # Quick check for cached torrents
-        cached_torrents_count = await database.fetch_val(
-            """
-                SELECT COUNT(*)
-                FROM torrents
-                WHERE media_id = :media_id
-                AND ((season IS NOT NULL AND season = CAST(:season as INTEGER)) OR (season IS NULL AND CAST(:season as INTEGER) IS NULL))
-                AND (episode IS NULL OR episode = CAST(:episode as INTEGER))
-                AND timestamp + :cache_ttl >= :current_time
-            """,
-            {
-                "media_id": id,
-                "season": season,
-                "episode": episode,
-                "cache_ttl": settings.LIVE_TORRENT_CACHE_TTL,
-                "current_time": time.time(),
-            },
-        )
+        # Quick check for "fresh" cached torrents to decide if we need to re-scrape.
+        # This does NOT filter what torrents are shown, it only determines if a new search is triggered.
+        # LIVE_TORRENT_CACHE_TTL controls when cache is considered "stale" and needs refreshing.
+        # If -1, cache is never considered stale (all cached torrents are "fresh").
+        if settings.LIVE_TORRENT_CACHE_TTL >= 0:
+            fresh_cached_count = await database.fetch_val(
+                """
+                    SELECT COUNT(*)
+                    FROM torrents
+                    WHERE media_id = :media_id
+                    AND ((season IS NOT NULL AND season = CAST(:season as INTEGER)) OR (season IS NULL AND CAST(:season as INTEGER) IS NULL))
+                    AND (episode IS NULL OR episode = CAST(:episode as INTEGER))
+                    AND timestamp + :cache_ttl >= :current_time
+                """,
+                {
+                    "media_id": id,
+                    "season": season,
+                    "episode": episode,
+                    "cache_ttl": settings.LIVE_TORRENT_CACHE_TTL,
+                    "current_time": time.time(),
+                },
+            )
+        else:
+            # TTL=-1 means cache never expires, count all cached torrents as "fresh"
+            fresh_cached_count = await database.fetch_val(
+                """
+                    SELECT COUNT(*)
+                    FROM torrents
+                    WHERE media_id = :media_id
+                    AND ((season IS NOT NULL AND season = CAST(:season as INTEGER)) OR (season IS NULL AND CAST(:season as INTEGER) IS NULL))
+                    AND (episode IS NULL OR episode = CAST(:episode as INTEGER))
+                """,
+                {
+                    "media_id": id,
+                    "season": season,
+                    "episode": episode,
+                },
+            )
 
-        # If both metadata and torrents are cached, skip lock entirely
-        if cached_metadata is not None and cached_torrents_count > 0:
+        # Track if cache is stale (no fresh torrents) for background refresh decision
+        cache_is_stale = fresh_cached_count == 0
+
+        # If both metadata and fresh torrents are cached, skip lock entirely
+        if cached_metadata is not None and fresh_cached_count > 0:
             logger.log("SCRAPER", f"🚀 Fast path: using cached data for {media_id}")
             metadata, aliases = cached_metadata[0], cached_metadata[1]
             # Variables for fast path
@@ -244,7 +290,7 @@ async def stream(
                     {
                         "name": "[⚠️] Comet",
                         "description": "Unable to get metadata.",
-                        "url": "https://comet.fast",
+                        "url": "https://comet.looks.legal",
                     }
                 ]
             }
@@ -296,6 +342,7 @@ async def stream(
         is_first = await is_first_search(media_id)
         has_cached_results = len(torrent_manager.torrents) > 0
 
+        sort_mixed = config["sortCachedUncachedTogether"]
         cached_results = []
         non_cached_results = []
 
@@ -333,33 +380,39 @@ async def stream(
                             {
                                 "name": "[🔄] Comet",
                                 "description": "Scraping in progress by another instance, please try again in a few seconds...",
-                                "url": "https://comet.fast",
+                                "url": "https://comet.looks.legal",
                             }
                         ]
                     }
 
-        elif is_first:
-            logger.log(
-                "SCRAPER",
-                f"🔄 Starting background scrape + availability check for {log_title}",
-            )
+        elif is_first or cache_is_stale:
+            # Background scrape if first search OR if cache is stale (needs refresh)
+            if is_first:
+                logger.log(
+                    "SCRAPER",
+                    f"🔄 First search - starting background scrape for {log_title}",
+                )
+                cached_results.append(
+                    {
+                        "name": "[🔄] Comet",
+                        "description": "First search for this media - More results will be available in a few seconds...",
+                        "url": "https://comet.looks.legal",
+                    }
+                )
+            else:
+                logger.log(
+                    "SCRAPER",
+                    f"🔄 Cache stale - starting background refresh for {log_title}",
+                )
 
             background_tasks.add_task(
                 background_scrape, torrent_manager, media_id, debrid_service
             )
 
-            cached_results.append(
-                {
-                    "name": "[🔄] Comet",
-                    "description": "First search for this media - More results will be available in a few seconds...",
-                    "url": "https://comet.fast",
-                }
-            )
-
         # Perform scraping if lock acquired and needed
         if needs_scraping and scrape_lock:
             try:
-                await torrent_manager.scrape_torrents(session)
+                await torrent_manager.scrape_torrents()
                 logger.log(
                     "SCRAPER",
                     f"📥 Torrents after global RTN filtering: {len(torrent_manager.torrents)}",
@@ -390,14 +443,25 @@ async def stream(
             and debrid_service != "torrent"
         ):
             logger.log("SCRAPER", "🔄 Checking availability on debrid service...")
-            await debrid_service_instance.get_and_cache_availability(
-                session,
-                torrent_manager.torrents,
-                media_id,
-                media_only_id,
-                season,
-                episode,
-            )
+            try:
+                await debrid_service_instance.get_and_cache_availability(
+                    session,
+                    torrent_manager.torrents,
+                    media_id,
+                    media_only_id,
+                    season,
+                    episode,
+                )
+            except DebridAuthError as e:
+                return {
+                    "streams": [
+                        {
+                            "name": "[❌] Comet",
+                            "description": e.display_message,
+                            "url": "https://comet.looks.legal",
+                        }
+                    ]
+                }
 
         if debrid_service != "torrent":
             cached_count = sum(
@@ -436,7 +500,7 @@ async def stream(
                 {
                     "name": "[⚠️] Comet",
                     "description": "Debrid Stream Proxy Password incorrect.\nStreams will not be proxied.",
-                    "url": "https://comet.fast",
+                    "url": "https://comet.looks.legal",
                 }
             )
 
@@ -444,6 +508,11 @@ async def stream(
         result_episode = episode if episode is not None else "n"
 
         torrents = torrent_manager.torrents
+        base_playback_host = (
+            settings.PUBLIC_BASE_URL
+            if settings.PUBLIC_BASE_URL
+            else f"{request.url.scheme}://{request.url.netloc}"
+        )
         for info_hash in torrent_manager.ranked_torrents:
             torrent = torrents[info_hash]
             rtn_data = torrent["parsed"]
@@ -491,12 +560,17 @@ async def stream(
                     the_stream["sources"] = torrent["sources"]
             else:
                 the_stream["url"] = (
-                    f"{request.url.scheme}://{request.url.netloc}/{b64config}/playback/{info_hash}/{torrent['fileIndex'] if torrent['cached'] and torrent['fileIndex'] is not None else 'n'}/{result_season}/{result_episode}/{quote(torrent_title)}?name={quote(title)}"
+                    f"{base_playback_host}/{b64config}/playback/{info_hash}/{torrent['fileIndex'] if torrent['cached'] and torrent['fileIndex'] is not None else 'n'}/{result_season}/{result_episode}/{quote(torrent_title)}?name={quote(title)}"
                 )
 
-            if torrent["cached"]:
+            if sort_mixed:
+                cached_results.append(the_stream)
+            elif torrent["cached"]:
                 cached_results.append(the_stream)
             else:
                 non_cached_results.append(the_stream)
+
+        if sort_mixed:
+            return {"streams": cached_results}
 
         return {"streams": cached_results + non_cached_results}

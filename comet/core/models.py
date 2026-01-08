@@ -18,7 +18,7 @@ from comet.core.logger import logger
 
 class AppSettings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+        env_file=".env", env_file_encoding="utf-8", extra="allow"
     )
 
     ADDON_ID: Optional[str] = "stremio.comet.fast"
@@ -28,6 +28,7 @@ class AppSettings(BaseSettings):
     FASTAPI_WORKERS: Optional[int] = 1
     USE_GUNICORN: Optional[bool] = True
     GUNICORN_PRELOAD_APP: Optional[bool] = True
+    EXECUTOR_MAX_WORKERS: Optional[int] = None
     ADMIN_DASHBOARD_PASSWORD: Optional[str] = "".join(
         random.choices(string.ascii_letters + string.digits, k=16)
     )
@@ -39,8 +40,8 @@ class AppSettings(BaseSettings):
     DATABASE_READ_REPLICA_URLS: List[str] = Field(default_factory=list)
     DATABASE_STARTUP_CLEANUP_INTERVAL: Optional[int] = 3600
     METADATA_CACHE_TTL: Optional[int] = 2592000  # 30 days
-    TORRENT_CACHE_TTL: Optional[int] = 1296000  # 15 days
-    LIVE_TORRENT_CACHE_TTL: Optional[int] = 1296000  # 15 days
+    TORRENT_CACHE_TTL: Optional[int] = 2592000  # 30 days
+    LIVE_TORRENT_CACHE_TTL: Optional[int] = 604800  # 7 days
     DEBRID_CACHE_TTL: Optional[int] = 86400  # 1 day
     METRICS_CACHE_TTL: Optional[int] = 60  # 1 minute
     DEBRID_CACHE_CHECK_RATIO: Optional[float] = 0.0  # 0.0 to 1.0
@@ -48,7 +49,6 @@ class AppSettings(BaseSettings):
     SCRAPE_WAIT_TIMEOUT: Optional[int] = (
         30  # Max time to wait for other instance to complete
     )
-    BYPASS_PROXY_URL: Optional[str] = None
     INDEXER_MANAGER_TYPE: Optional[str] = None
     INDEXER_MANAGER_URL: Optional[str] = "http://127.0.0.1:9117"
     INDEXER_MANAGER_API_KEY: Optional[str] = None
@@ -74,8 +74,11 @@ class AppSettings(BaseSettings):
     SCRAPE_NYAA: Union[bool, str] = False
     NYAA_ANIME_ONLY: Optional[bool] = True
     NYAA_MAX_CONCURRENT_PAGES: Optional[int] = 5
+    SCRAPE_ANIMETOSHO: Union[bool, str] = False
+    ANIMETOSHO_ANIME_ONLY: Optional[bool] = True
+    ANIMETOSHO_MAX_CONCURRENT_PAGES: Optional[int] = 10
     SCRAPE_ZILEAN: Union[bool, str] = False
-    ZILEAN_URL: Union[str, List[str]] = "https://zilean.elfhosted.com"
+    ZILEAN_URL: Union[str, List[str]] = "https://zileanfortheweebs.midnightignite.me"
     SCRAPE_STREMTHRU: Union[bool, str] = False
     STREMTHRU_SCRAPE_URL: Union[str, List[str]] = "https://stremthru.13377001.xyz"
     SCRAPE_BITMAGNET: Union[bool, str] = False
@@ -101,11 +104,7 @@ class AppSettings(BaseSettings):
     DEBRIDIO_PROVIDER_KEY: Optional[str] = None
     SCRAPE_TORBOX: Union[bool, str] = False
     TORBOX_API_KEY: Optional[str] = None
-    SCRAPE_YGGTORRENT: Union[bool, str] = False
-    YGGTORRENT_USERNAME: Optional[str] = None
-    YGGTORRENT_PASSWORD: Optional[str] = None
-    YGGTORRENT_PASSKEY: Optional[str] = None
-    YGGTORRENT_MAX_CONCURRENT_PAGES: Optional[int] = 5
+    SCRAPE_TORRENTSDB: Union[bool, str] = False
     CUSTOM_HEADER_HTML: Optional[str] = None
     PROXY_DEBRID_STREAM: Optional[bool] = False
     PROXY_DEBRID_STREAM_PASSWORD: Optional[str] = "".join(
@@ -114,21 +113,30 @@ class AppSettings(BaseSettings):
     PROXY_DEBRID_STREAM_MAX_CONNECTIONS: Optional[int] = -1
     PROXY_DEBRID_STREAM_DEBRID_DEFAULT_SERVICE: Optional[str] = "realdebrid"
     PROXY_DEBRID_STREAM_DEBRID_DEFAULT_APIKEY: Optional[str] = None
+    PROXY_DEBRID_STREAM_INACTIVITY_THRESHOLD: Optional[int] = 300
     STREMTHRU_URL: Optional[str] = "https://stremthru.13377001.xyz"
     DISABLE_TORRENT_STREAMS: Optional[bool] = False
     TORRENT_DISABLED_STREAM_NAME: Optional[str] = "[INFO] Comet"
     TORRENT_DISABLED_STREAM_DESCRIPTION: Optional[str] = (
         "Direct torrent playback is disabled on this server."
     )
-    TORRENT_DISABLED_STREAM_URL: Optional[str] = "https://comet.fast"
+    TORRENT_DISABLED_STREAM_URL: Optional[str] = "https://comet.looks.legal"
+    PUBLIC_BASE_URL: Optional[str] = None
     REMOVE_ADULT_CONTENT: Optional[bool] = False
     BACKGROUND_SCRAPER_ENABLED: Optional[bool] = False
     BACKGROUND_SCRAPER_CONCURRENT_WORKERS: Optional[int] = 1
     BACKGROUND_SCRAPER_INTERVAL: Optional[int] = 3600
     BACKGROUND_SCRAPER_MAX_MOVIES_PER_RUN: Optional[int] = 100
     BACKGROUND_SCRAPER_MAX_SERIES_PER_RUN: Optional[int] = 100
-    ANIME_MAPPING_SOURCE: Optional[str] = "remote"
+    ANIME_MAPPING_SOURCE: Optional[str] = "database"
     ANIME_MAPPING_REFRESH_INTERVAL: Optional[int] = 86400
+    DIGITAL_RELEASE_FILTER: Optional[bool] = False
+    TMDB_READ_ACCESS_TOKEN: Optional[str] = None
+    GLOBAL_PROXY_URL: Optional[str] = None
+    PROXY_ETHOS: Optional[str] = "always"
+    RATELIMIT_MAX_RETRIES: Optional[int] = 3
+    RATELIMIT_RETRY_BASE_DELAY: Optional[float] = 1.0
+    RTN_FILTER_DEBUG: Optional[bool] = False
 
     @field_validator("INDEXER_MANAGER_TYPE")
     def set_indexer_manager_type(cls, v, values):
@@ -177,6 +185,7 @@ class AppSettings(BaseSettings):
         "JACKETTIO_URL",
         "JACKETT_URL",
         "PROWLARR_URL",
+        "PUBLIC_BASE_URL",
     )
     def normalize_urls(cls, v):
         if isinstance(v, str):
@@ -680,6 +689,7 @@ rtn_ranking_default = DefaultRanking()
 
 class ConfigModel(BaseModel):
     cachedOnly: Optional[bool] = False
+    sortCachedUncachedTogether: Optional[bool] = False
     removeTrash: Optional[bool] = True
     resultFormat: Optional[List[str]] = ["all"]
     maxResultsPerResolution: Optional[int] = 0

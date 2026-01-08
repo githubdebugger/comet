@@ -5,6 +5,7 @@ import time
 
 from loguru import logger
 
+from comet.core.execution import max_workers
 from comet.core.log_levels import (CUSTOM_LOG_LEVELS, STANDARD_LOG_LEVELS,
                                    get_level_info)
 
@@ -175,6 +176,15 @@ def log_startup_info(settings):
         f"Server started on http://{settings.FASTAPI_HOST}:{settings.FASTAPI_PORT} - {settings.FASTAPI_WORKERS} workers",
     )
     logger.log("COMET", f"Gunicorn Preload App: {settings.GUNICORN_PRELOAD_APP}")
+
+    logger.log(
+        "COMET",
+        f"ProcessPoolExecutor: {max_workers} workers {'(auto)' if settings.EXECUTOR_MAX_WORKERS is None else ''}",
+    )
+
+    if settings.PUBLIC_BASE_URL:
+        logger.log("COMET", f"Public Base URL: {settings.PUBLIC_BASE_URL}")
+
     logger.log(
         "COMET",
         f"Admin Dashboard Password: {settings.ADMIN_DASHBOARD_PASSWORD} -  http://{settings.FASTAPI_HOST}:{settings.FASTAPI_PORT}/admin - Public Metrics API: {settings.PUBLIC_METRICS_API}",
@@ -185,7 +195,7 @@ def log_startup_info(settings):
         replicas = f" - Read Replicas: {settings.DATABASE_READ_REPLICA_URLS}"
     logger.log(
         "COMET",
-        f"Database ({settings.DATABASE_TYPE}): {settings.DATABASE_PATH if settings.DATABASE_TYPE == 'sqlite' else settings.DATABASE_URL} - TTL: metadata={settings.METADATA_CACHE_TTL}s, torrents={settings.TORRENT_CACHE_TTL}s, live_torrents={settings.LIVE_TORRENT_CACHE_TTL}s, debrid={settings.DEBRID_CACHE_TTL}s, metrics={settings.METRICS_CACHE_TTL}s - Debrid Ratio: {settings.DEBRID_CACHE_CHECK_RATIO} - Startup Cleanup Interval: {settings.DATABASE_STARTUP_CLEANUP_INTERVAL}s{replicas}",
+        f"Database ({settings.DATABASE_TYPE}): {settings.DATABASE_PATH if settings.DATABASE_TYPE == 'sqlite' else settings.DATABASE_URL} - Batch Size: {settings.DATABASE_BATCH_SIZE} - TTL: metadata={settings.METADATA_CACHE_TTL}s, torrents={settings.TORRENT_CACHE_TTL}s, live_torrents={settings.LIVE_TORRENT_CACHE_TTL}s, debrid={settings.DEBRID_CACHE_TTL}s, metrics={settings.METRICS_CACHE_TTL}s - Debrid Ratio: {settings.DEBRID_CACHE_CHECK_RATIO} - Startup Cleanup Interval: {settings.DATABASE_STARTUP_CLEANUP_INTERVAL}s{replicas}",
     )
 
     # SQLite concurrency warnings
@@ -209,7 +219,15 @@ def log_startup_info(settings):
         "COMET",
         f"Anime Mapping: source={settings.ANIME_MAPPING_SOURCE} - refresh_interval={settings.ANIME_MAPPING_REFRESH_INTERVAL}s",
     )
-    logger.log("COMET", f"Bypass Proxy: {settings.BYPASS_PROXY_URL}")
+
+    logger.log(
+        "COMET",
+        f"Global Proxy: {settings.GLOBAL_PROXY_URL} - Ethos: {settings.PROXY_ETHOS}",
+    )
+    logger.log(
+        "COMET",
+        f"Rate Limit Manager: Max Retries={settings.RATELIMIT_MAX_RETRIES} - Base Delay={settings.RATELIMIT_RETRY_BASE_DELAY}s",
+    )
 
     jackett_info = ""
     if settings.is_any_context_enabled(settings.SCRAPE_JACKETT):
@@ -248,6 +266,9 @@ def log_startup_info(settings):
     )
     logger.log("COMET", f"Get Torrent Timeout: {settings.GET_TORRENT_TIMEOUT}s")
     logger.log("COMET", f"Magnet Resolve Timeout: {settings.MAGNET_RESOLVE_TIMEOUT}s")
+    logger.log("COMET", f"Catalog Timeout: {settings.CATALOG_TIMEOUT}s")
+    logger.log("COMET", f"Scrape Lock TTL: {settings.SCRAPE_LOCK_TTL}s")
+    logger.log("COMET", f"Scrape Wait Timeout: {settings.SCRAPE_WAIT_TIMEOUT}s")
     logger.log(
         "COMET", f"Download Torrent Files: {bool(settings.DOWNLOAD_TORRENT_FILES)}"
     )
@@ -263,13 +284,23 @@ def log_startup_info(settings):
     )
 
     nyaa_anime_only = (
-        f" - Anime Only: {bool(settings.NYAA_ANIME_ONLY)}"
+        f" - Anime Only: {bool(settings.NYAA_ANIME_ONLY)} - Concurrent Pages: {settings.NYAA_MAX_CONCURRENT_PAGES}"
         if settings.is_any_context_enabled(settings.SCRAPE_NYAA)
         else ""
     )
     logger.log(
         "COMET",
         f"Nyaa Scraper: {settings.format_scraper_mode(settings.SCRAPE_NYAA)}{nyaa_anime_only}",
+    )
+
+    animetosho_anime_only = (
+        f" - Anime Only: {bool(settings.ANIMETOSHO_ANIME_ONLY)} - Concurrent Pages: {settings.ANIMETOSHO_MAX_CONCURRENT_PAGES}"
+        if settings.is_any_context_enabled(settings.SCRAPE_ANIMETOSHO)
+        else ""
+    )
+    logger.log(
+        "COMET",
+        f"AnimeTosho Scraper: {settings.format_scraper_mode(settings.SCRAPE_ANIMETOSHO)}{animetosho_anime_only}",
     )
 
     zilean_url = (
@@ -292,14 +323,14 @@ def log_startup_info(settings):
         f"StremThru Scraper: {settings.format_scraper_mode(settings.SCRAPE_STREMTHRU)}{stremthru_scrape_url}",
     )
 
-    bitmagnet_url = (
-        f" - {settings.BITMAGNET_URL}"
+    bitmagnet_info = (
+        f" - {settings.BITMAGNET_URL} - Concurrent Pages: {settings.BITMAGNET_MAX_CONCURRENT_PAGES} - Max Offset: {settings.BITMAGNET_MAX_OFFSET}"
         if settings.is_any_context_enabled(settings.SCRAPE_BITMAGNET)
         else ""
     )
     logger.log(
         "COMET",
-        f"Bitmagnet Scraper: {settings.format_scraper_mode(settings.SCRAPE_BITMAGNET)}{bitmagnet_url}",
+        f"Bitmagnet Scraper: {settings.format_scraper_mode(settings.SCRAPE_BITMAGNET)}{bitmagnet_info}",
     )
 
     torrentio_url = (
@@ -362,18 +393,13 @@ def log_startup_info(settings):
         f"TorBox Scraper: {settings.format_scraper_mode(settings.SCRAPE_TORBOX)}{torbox_api_key}",
     )
 
-    yggtorrent_info = (
-        f" - Username: {settings.YGGTORRENT_USERNAME} - Password: {settings.YGGTORRENT_PASSWORD} - Passkey: {settings.YGGTORRENT_PASSKEY}"
-        if settings.is_any_context_enabled(settings.SCRAPE_YGGTORRENT)
-        else ""
-    )
     logger.log(
         "COMET",
-        f"YGGTorrent Scraper: {settings.format_scraper_mode(settings.SCRAPE_YGGTORRENT)}{yggtorrent_info}",
+        f"TorrentsDB Scraper: {settings.format_scraper_mode(settings.SCRAPE_TORRENTSDB)}",
     )
 
     debrid_stream_proxy_display = (
-        f" - Password: {settings.PROXY_DEBRID_STREAM_PASSWORD} - Max Connections: {settings.PROXY_DEBRID_STREAM_MAX_CONNECTIONS} - Default Debrid Service: {settings.PROXY_DEBRID_STREAM_DEBRID_DEFAULT_SERVICE} - Default Debrid API Key: {settings.PROXY_DEBRID_STREAM_DEBRID_DEFAULT_APIKEY}"
+        f" - Password: {settings.PROXY_DEBRID_STREAM_PASSWORD} - Max Connections: {settings.PROXY_DEBRID_STREAM_MAX_CONNECTIONS} - Inactivity Threshold: {settings.PROXY_DEBRID_STREAM_INACTIVITY_THRESHOLD}s - Default Debrid Service: {settings.PROXY_DEBRID_STREAM_DEBRID_DEFAULT_SERVICE} - Default Debrid API Key: {settings.PROXY_DEBRID_STREAM_DEBRID_DEFAULT_APIKEY}"
         if settings.PROXY_DEBRID_STREAM
         else ""
     )
@@ -384,12 +410,25 @@ def log_startup_info(settings):
 
     logger.log("COMET", f"StremThru URL: {settings.STREMTHRU_URL}")
 
+    disabled_streams_info = (
+        f" - Name: {settings.TORRENT_DISABLED_STREAM_NAME} - URL: {settings.TORRENT_DISABLED_STREAM_URL} - Description: {settings.TORRENT_DISABLED_STREAM_DESCRIPTION}"
+        if settings.DISABLE_TORRENT_STREAMS
+        else ""
+    )
     logger.log(
         "COMET",
-        f"Disable Torrent Streams: {bool(settings.DISABLE_TORRENT_STREAMS)}",
+        f"Disable Torrent Streams: {bool(settings.DISABLE_TORRENT_STREAMS)}{disabled_streams_info}",
     )
 
     logger.log("COMET", f"Remove Adult Content: {bool(settings.REMOVE_ADULT_CONTENT)}")
+    logger.log("COMET", f"RTN Filter Debug: {bool(settings.RTN_FILTER_DEBUG)}")
+    logger.log(
+        "COMET", f"Digital Release Filter: {bool(settings.DIGITAL_RELEASE_FILTER)}"
+    )
+    logger.log(
+        "COMET",
+        f"TMDB Read Access Token: {settings.TMDB_READ_ACCESS_TOKEN if settings.TMDB_READ_ACCESS_TOKEN else 'Shared'}",
+    )
     logger.log("COMET", f"Custom Header HTML: {bool(settings.CUSTOM_HEADER_HTML)}")
 
     background_scraper_display = (
